@@ -7,22 +7,31 @@ import os
 class ParkingPredictor:
     def __init__(self):
         # Get absolute path to models
+        # current_dir is backend/models
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        # project_root is the main campus-parking-predictor folder
         project_root = os.path.dirname(os.path.dirname(current_dir))
         model_path = os.path.join(project_root, 'ml_models', 'saved_models')
         
         print(f"🔄 Loading ML models from: {model_path}")
         
-        with open(os.path.join(model_path, 'occupancy_model.pkl'), 'rb') as f:
-            self.occupancy_model = pickle.load(f)
-        with open(os.path.join(model_path, 'search_time_model.pkl'), 'rb') as f:
-            self.search_time_model = pickle.load(f)
-        with open(os.path.join(model_path, 'parking_classifier.pkl'), 'rb') as f:
-            self.parking_classifier = pickle.load(f)
-        with open(os.path.join(model_path, 'feature_columns.pkl'), 'rb') as f:
-            self.feature_columns = pickle.load(f)
-        
-        print("✅ Models loaded successfully")
+        # Helper to safely join paths
+        def get_path(filename):
+            return os.path.join(model_path, filename)
+
+        try:
+            with open(get_path('occupancy_model.pkl'), 'rb') as f:
+                self.occupancy_model = pickle.load(f)
+            with open(get_path('search_time_model.pkl'), 'rb') as f:
+                self.search_time_model = pickle.load(f)
+            with open(get_path('parking_classifier.pkl'), 'rb') as f:
+                self.parking_classifier = pickle.load(f)
+            with open(get_path('feature_columns.pkl'), 'rb') as f:
+                self.feature_columns = pickle.load(f)
+            print("✅ Models loaded successfully")
+        except FileNotFoundError as e:
+            print(f"⚠️ Warning: Model files not found at {model_path}: {e}")
+            raise e
     
     def prepare_features(self, lot_id, timestamp, weather='sunny', temperature=70,
                         is_exam_week=False, capacity=150, prev_occupancy=0.5):
