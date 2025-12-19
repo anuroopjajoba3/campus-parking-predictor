@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNH Parking - Login</title>
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://campus-parking-predictor-1.onrender.com; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <link rel="icon" href="data:,">
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -207,7 +211,8 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:5001/api';
+        // Updated to your live Render backend URL
+        const API_URL = 'https://campus-parking-predictor-1.onrender.com/api';
         
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -228,6 +233,9 @@
             submitBtn.textContent = 'Signing in...';
             
             try {
+                // SERVER WAKE-UP PING: Ensures Render isn't asleep
+                await fetch(API_URL.split('/api')[0] + '/');
+
                 const response = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
                     headers: {
@@ -254,7 +262,7 @@
                     errorDiv.classList.add('show');
                 }
             } catch (error) {
-                errorDiv.textContent = 'Connection error. Make sure Flask is running!';
+                errorDiv.textContent = 'Connection error. Check your internet or if the server is starting!';
                 errorDiv.classList.add('show');
             } finally {
                 loading.style.display = 'none';

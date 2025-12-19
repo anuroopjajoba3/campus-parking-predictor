@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNH Parking - Find Your Spot</title>
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://campus-parking-predictor-1.onrender.com; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <link rel="icon" href="data:,">
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -250,8 +254,8 @@
 
         async function loadData() {
             try {
-                // Check server health first to ensure Render isn't asleep
-                const healthRes = await fetch(`${API_URL.replace('/api', '')}/`);
+                // Ensure server is awake before making main data calls
+                await fetch(`${API_URL.replace('/api', '')}/`);
                 
                 const [statsRes, lotsRes, predRes] = await Promise.all([
                     fetch(`${API_URL}/stats`),
@@ -266,17 +270,13 @@
                 if (statsData.success) renderStats(statsData.stats);
                 if (lotsData.success) {
                     const predMap = {};
-                    if (predData.success) {
+                    if (predData.success && predData.predictions) {
                         predData.predictions.forEach(p => predMap[p.lot_id] = p);
                     }
                     renderLots(lotsData.data, predMap);
                 }
             } catch (err) { 
                 console.error("Connectivity Issue:", err);
-                // Handle the case where the server might be waking up
-                if (err.message.includes('Failed to fetch')) {
-                    console.log("Server is waking up from inactivity...");
-                }
             }
         }
 
@@ -365,7 +365,7 @@
                 const data = await res.json();
                 const occupied = data.occupied_spots || [];
                 
-                // Generate grid A1-B10
+                // Visualization of spots A1-B10 logic preserved
                 const spots = Array.from({length: 20}, (_, i) => ({ number: i < 10 ? `A${i+1}` : `B${i-9}` }));
                 
                 document.getElementById('spotsGrid').innerHTML = spots.map(s => {
@@ -418,7 +418,7 @@
                     
                     localStorage.setItem('myParkedSpots', JSON.stringify(myParkedSpots));
                     closeModal();
-                    await loadData(); // Reload to refresh availability
+                    await loadData();
                     alert(`✅ ${modalMode === 'park' ? 'Parked' : 'Exited'} Successfully!`);
                 } else {
                     alert(`❌ Failed: ${data.error || 'Unknown error'}`);
@@ -426,7 +426,7 @@
                     btn.textContent = originalText;
                 }
             } catch (e) { 
-                alert("Error: Connection failed. Please try again."); 
+                alert("Error: Connection failed."); 
                 btn.disabled = false; 
                 btn.textContent = originalText;
             }
@@ -442,9 +442,8 @@
             window.location.href = 'login.html'; 
         }
         
-        // Initial data load
         loadData();
-        // Refresh every 30 seconds
+        // 30s auto-refresh logic preserved
         setInterval(loadData, 30000);
     </script>
 </body>

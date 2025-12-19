@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNH Parking - Find Your Spot</title>
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://campus-parking-predictor-1.onrender.com; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <link rel="icon" href="data:,">
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
@@ -234,7 +238,7 @@
     </div>
 
     <script>
-        // CRITICAL UPDATE: Updated to point to your live Render backend URL
+        // POINTING TO LIVE BACKEND
         const API_URL = 'https://campus-parking-predictor-1.onrender.com/api';
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -250,6 +254,9 @@
 
         async function loadData() {
             try {
+                // SERVER WAKE-UP PING: Ensures Render isn't asleep
+                await fetch(API_URL.split('/api')[0] + '/');
+                
                 const [statsRes, lotsRes, predRes] = await Promise.all([
                     fetch(`${API_URL}/stats`),
                     fetch(`${API_URL}/lots`),
@@ -261,7 +268,6 @@
                 const predData = await predRes.json();
 
                 if (statsData.success) renderStats(statsData.stats);
-                
                 if (lotsData.success) {
                     const predMap = {};
                     if (predData.success && predData.predictions) {
@@ -269,7 +275,9 @@
                     }
                     renderLots(lotsData.data, predMap);
                 }
-            } catch (err) { console.error("Update failed:", err); }
+            } catch (err) { 
+                console.error("Connectivity Issue:", err);
+            }
         }
 
         function renderStats(s) {
@@ -357,8 +365,8 @@
                 const data = await res.json();
                 const occupied = data.occupied_spots || [];
                 
-                // Visualization of spots A1-A20
-                const spots = Array.from({length: 20}, (_, i) => ({ number: `A${i+1}` }));
+                // VISUALIZATION LOGIC: A1-B10 Grid Preserved
+                const spots = Array.from({length: 20}, (_, i) => ({ number: i < 10 ? `A${i+1}` : `B${i-9}` }));
                 
                 document.getElementById('spotsGrid').innerHTML = spots.map(s => {
                     const isMine = myParkedSpots[lotId] === s.number;
@@ -367,7 +375,9 @@
                 }).join('');
                 
                 if (modalMode === 'leave' && selectedSpot) selectSpot(selectedSpot, false);
-            } catch (err) { console.error("Failed to load spots", err); }
+            } catch (err) {
+                console.error("Failed to load spots:", err);
+            }
         }
 
         function selectSpot(num, occ) {
@@ -394,7 +404,10 @@
 
                 const res = await fetch(`${API_URL}/report/${modalMode === 'park' ? 'entry' : 'exit'}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${token}` 
+                    },
                     body: JSON.stringify(body)
                 });
                 
@@ -405,15 +418,17 @@
                     
                     localStorage.setItem('myParkedSpots', JSON.stringify(myParkedSpots));
                     closeModal();
-                    loadData();
-                    alert(`✅ Successful!`);
+                    await loadData(); // Reload to refresh availability
+                    alert(`✅ ${modalMode === 'park' ? 'Parked' : 'Exited'} Successfully!`);
                 } else {
-                    alert(`❌ Failed: ${data.error || 'Server error'}`);
-                    btn.disabled = false; btn.textContent = originalText;
+                    alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
                 }
             } catch (e) { 
-                alert("Error: Connection issue"); 
-                btn.disabled = false; btn.textContent = originalText;
+                alert("Error: Connection failed. Please try again."); 
+                btn.disabled = false; 
+                btn.textContent = originalText;
             }
         }
 
@@ -429,7 +444,7 @@
         
         // Initial data load
         loadData();
-        // 30s auto-refresh
+        // 30s auto-refresh logic preserved
         setInterval(loadData, 30000);
     </script>
 </body>
