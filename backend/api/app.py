@@ -28,20 +28,25 @@ CORS(app)  # Enable CORS for frontend
 # Register authentication blueprint
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
-# Database configuration
+# --- UPDATED DATABASE CONFIGURATION FOR RAILWAY ---
+# Priority 1: Railway Variables | Priority 2: Local MacBook Default
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'Verizonsam@9896',
-    'database': 'parking_db'
+    'host': os.getenv('MYSQLHOST', 'localhost'),
+    'user': os.getenv('MYSQLUSER', 'root'),
+    'password': os.getenv('MYSQLPASSWORD', 'Verizonsam@9896'),
+    'database': os.getenv('MYSQLDATABASE', 'parking_db'),
+    'port': int(os.getenv('MYSQLPORT', 3306))
 }
 
 def get_db_connection():
+    """Establishes a connection to the database using configured credentials."""
     return mysql.connector.connect(**DB_CONFIG)
+
+# --- ROUTES ---
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint to verify database and ML status."""
     try:
         conn = get_db_connection()
         conn.close()
@@ -54,18 +59,18 @@ def health_check():
     
     return jsonify({
         "status": "healthy",
+        "environment": "production" if os.getenv('MYSQLHOST') else "development",
         "database": db_status,
         "ml_models": ml_status
     })
 
 @app.route('/api/lots', methods=['GET'])
 def get_parking_lots():
-    """Get all parking lots with current occupancy"""
+    """Get all parking lots with current occupancy."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get lots with current occupancy based on entry/exit events
         query = """
         SELECT 
             l.lot_id,
@@ -93,10 +98,8 @@ def get_parking_lots():
         
         cursor.execute(query)
         lots = cursor.fetchall()
-        
         cursor.close()
         conn.close()
-        
         return jsonify({"success": True, "data": lots})
     except Error as e:
         print(f"ERROR in /api/lots: {str(e)}")
@@ -104,16 +107,14 @@ def get_parking_lots():
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Get aggregate statistics"""
+    """Get aggregate statistics for the dashboard."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Count total events
         cursor.execute("SELECT COUNT(*) as total_events FROM parking_events")
         total = cursor.fetchone()
         
-        # Get average search time
         cursor.execute("""
             SELECT COALESCE(ROUND(AVG(search_time_minutes), 2), 0) as average_search_time
             FROM parking_events 
@@ -121,7 +122,6 @@ def get_stats():
         """)
         avg_time = cursor.fetchone()
         
-        # Count currently occupied spaces (entries without exits)
         cursor.execute("""
             SELECT COUNT(DISTINCT e1.registered_user_id) as occupied_spaces
             FROM parking_events e1
@@ -136,7 +136,6 @@ def get_stats():
         """)
         occupied = cursor.fetchone()
         
-        # Get total capacity
         cursor.execute("SELECT COALESCE(SUM(capacity), 0) as total_spaces FROM parking_lots")
         capacity = cursor.fetchone()
         
@@ -147,7 +146,6 @@ def get_stats():
             'total_spaces': capacity['total_spaces']
         }
         
-        # Calculate availability
         if stats['total_spaces'] > 0:
             stats['overall_availability'] = round(
                 ((stats['total_spaces'] - stats['occupied_spaces']) / stats['total_spaces']) * 100, 1
@@ -157,7 +155,6 @@ def get_stats():
         
         cursor.close()
         conn.close()
-        
         return jsonify({"success": True, "stats": stats})
     except Error as e:
         print(f"ERROR in /api/stats: {str(e)}")
@@ -165,7 +162,7 @@ def get_stats():
 
 @app.route('/api/predict/all', methods=['GET'])
 def predict_all_lots():
-    """Get ML predictions for all parking lots"""
+    """Get ML predictions for all parking lots."""
     if not predictor:
         return jsonify({"success": False, "error": "ML predictor not available"}), 503
     
@@ -191,24 +188,19 @@ def predict_all_lots():
 @app.route('/api/report/entry', methods=['POST'])
 @token_required
 def report_entry(current_user):
-    """Record parking entry (authenticated users)"""
+    """Record parking entry for an authenticated user."""
     data = request.json
     lot_id = data.get('lot_id')
     search_time = data.get('search_time_minutes', 0)
     weather = data.get('weather', 'sunny')
     temperature = data.get('temperature', 70)
-    spot_number = data.get('spot_number')  # NEW: Get spot number
-    
-    print(f"📥 Entry request: user={current_user['email']}, lot={lot_id}, spot={spot_number}")
+    spot_number = data.get('spot_number')
     
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get day of week (0=Monday, 6=Sunday)
         day_of_week = datetime.now().weekday()
         
-        # FIXED: Store spot_number
         cursor.execute("""
             INSERT INTO parking_events 
             (lot_id, user_id, event_type, timestamp, search_time_minutes, 
@@ -219,11 +211,8 @@ def report_entry(current_user):
         
         conn.commit()
         event_id = cursor.lastrowid
-        
         cursor.close()
         conn.close()
-        
-        print(f"✅ Entry recorded: event_id={event_id}, spot={spot_number}")
         
         return jsonify({
             "success": True, 
@@ -237,21 +226,16 @@ def report_entry(current_user):
 @app.route('/api/report/exit', methods=['POST'])
 @token_required
 def report_exit(current_user):
-    """Record parking exit (authenticated users)"""
+    """Record parking exit for an authenticated user."""
     data = request.json
     lot_id = data.get('lot_id')
-    spot_number = data.get('spot_number')  # NEW: Get spot number
-    
-    print(f"📤 Exit request: user={current_user['email']}, lot={lot_id}, spot={spot_number}")
+    spot_number = data.get('spot_number')
     
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Get day of week
         day_of_week = datetime.now().weekday()
         
-        # FIXED: Store spot_number
         cursor.execute("""
             INSERT INTO parking_events 
             (lot_id, user_id, event_type, timestamp, day_of_week, registered_user_id, spot_number)
@@ -260,11 +244,8 @@ def report_exit(current_user):
         
         conn.commit()
         event_id = cursor.lastrowid
-        
         cursor.close()
         conn.close()
-        
-        print(f"✅ Exit recorded: event_id={event_id}, spot={spot_number}")
         
         return jsonify({
             "success": True, 
@@ -277,14 +258,13 @@ def report_exit(current_user):
 
 @app.route('/api/lots/<int:lot_id>/occupied-spots', methods=['GET'])
 def get_occupied_spots(lot_id):
-    """Get list of currently occupied spots for a parking lot"""
+    """Get a list of currently occupied spots for a specific lot."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Find all spots that have an entry but no exit
         cursor.execute("""
-            SELECT DISTINCT e1.spot_number, e1.registered_user_id
+            SELECT DISTINCT e1.spot_number
             FROM parking_events e1
             WHERE e1.lot_id = %s
             AND e1.event_type = 'entry'
@@ -300,7 +280,6 @@ def get_occupied_spots(lot_id):
         """, (lot_id,))
         
         occupied_spots = cursor.fetchall()
-        
         cursor.close()
         conn.close()
         
@@ -317,12 +296,11 @@ def get_occupied_spots(lot_id):
 @token_required
 @admin_required
 def admin_dashboard(current_user):
-    """Admin dashboard with detailed analytics"""
+    """Fetch detailed analytics for the Admin view."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get statistics
         cursor.execute("""
             SELECT 
                 COUNT(*) as total_events,
@@ -333,7 +311,6 @@ def admin_dashboard(current_user):
         """)
         stats = cursor.fetchone()
         
-        # Get currently occupied spaces
         cursor.execute("""
             SELECT COUNT(DISTINCT e1.registered_user_id) as occupied_spaces
             FROM parking_events e1
@@ -349,12 +326,10 @@ def admin_dashboard(current_user):
         occupied = cursor.fetchone()
         stats['occupied_spaces'] = occupied['occupied_spaces']
         
-        # Get total capacity
         cursor.execute("SELECT SUM(capacity) as total_spaces FROM parking_lots")
         capacity = cursor.fetchone()
         stats['total_spaces'] = capacity['total_spaces']
         
-        # Get lot details
         cursor.execute("""
             SELECT 
                 l.lot_id,
@@ -381,17 +356,13 @@ def admin_dashboard(current_user):
         
         cursor.close()
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'stats': stats,
-            'lots': lots
-        })
+        return jsonify({'success': True, 'stats': stats, 'lots': lots})
     except Error as e:
         print(f"ERROR in /api/admin/dashboard: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("🚀 Starting Flask API on http://localhost:5001")
-    print(f"📊 Database: {DB_CONFIG['database']}")
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # Railway provides the port via the PORT environment variable
+    port = int(os.environ.get("PORT", 5001))
+    print(f"🚀 Starting Flask API on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=True)
