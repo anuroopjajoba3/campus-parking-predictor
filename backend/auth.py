@@ -27,8 +27,8 @@ if db_url:
         'database': url.path[1:],
         'port': url.port or 3306,
         'ssl_disabled': False,
-        'ssl_verify_cert': True,
-        'ssl_verify_identity': True
+        'ssl_verify_cert': False,  # Disable strict cert verification
+        'ssl_verify_identity': False  # Disable identity verification
     }
 else:
     # Local configuration
