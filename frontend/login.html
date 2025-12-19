@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNH Parking - Login</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #003b71 0%, #005a9c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 450px;
+            padding: 50px 40px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .logo-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            color: #003b71;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #003b71;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: #003b71;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            background: #002a52;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 59, 113, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .error {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .demo-credentials {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .demo-credentials h3 {
+            color: #003b71;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        
+        .demo-credentials p {
+            color: #666;
+            margin: 5px 0;
+        }
+        
+        .demo-credentials strong {
+            color: #333;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #003b71;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-icon">🅿️</div>
+            <h1>UNH Parking</h1>
+            <p class="subtitle">Smart Campus Parking System</p>
+        </div>
+        
+        <div id="error" class="error"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" placeholder="Enter your UNH email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            
+            <button type="submit" class="btn">Sign In</button>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+            </div>
+        </form>
+        
+        <div class="demo-credentials">
+            <h3>🔑 Demo Credentials:</h3>
+            <p><strong>Admin:</strong> admin@unh.edu / admin123</p>
+            <p><strong>Student:</strong> student@unh.edu / user123</p>
+            <p><strong>Faculty:</strong> faculty@unh.edu / user123</p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('error');
+            const loading = document.getElementById('loading');
+            const submitBtn = document.querySelector('.btn');
+            
+            // Clear previous errors
+            errorDiv.classList.remove('show');
+            errorDiv.textContent = '';
+            
+            // Show loading
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Signing in...';
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Store token and user info
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    // Redirect based on role
+                    if (data.user.role === 'admin') {
+                        window.location.href = 'admin_dashboard.html';
+                    } else {
+                        window.location.href = 'user_dashboard.html';
+                    }
+                } else {
+                    errorDiv.textContent = data.message || 'Invalid credentials';
+                    errorDiv.classList.add('show');
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Make sure Flask is running!';
+                errorDiv.classList.add('show');
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

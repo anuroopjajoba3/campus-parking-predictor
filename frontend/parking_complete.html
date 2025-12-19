@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNH Parking - Find Your Spot</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #ffffff; color: #1a1a1a; }
+        
+        /* Layout */
+        .header { background: #003b71; color: white; padding: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header-content { max-width: 1200px; margin: 0 auto; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.5rem; font-weight: 700; }
+        .logout-link { color: white; text-decoration: none; padding: 8px 16px; border: 1px solid white; border-radius: 4px; transition: all 0.3s; }
+        .logout-link:hover { background: white; color: #003b71; }
+        .hero { background: linear-gradient(135deg, #003b71 0%, #0066cc 100%); color: white; text-align: center; padding: 60px 30px; }
+        .hero h1 { font-size: 3rem; margin-bottom: 20px; }
+        .container { max-width: 1200px; margin: -50px auto 60px; padding: 0 30px; }
+        
+        /* Dashboard Stats */
+        .quick-stats { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 40px; margin-bottom: 60px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; text-align: center; }
+        .stat-item h3 { font-size: 3rem; color: #003b71; margin-bottom: 10px; font-weight: 700; }
+        
+        /* Lot Cards */
+        .lots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 30px; }
+        .lot-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; transition: 0.3s; padding: 25px; border-top: 5px solid #003b71; }
+        .lot-card:hover { transform: translateY(-5px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+        .lot-name { font-size: 1.5rem; color: #003b71; font-weight: 700; }
+        .lot-location { color: #666; font-size: 0.9rem; margin-bottom: 15px; }
+        
+        /* Availability UI */
+        .avail-box { display: flex; justify-content: space-between; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .avail-num { font-size: 1.8rem; font-weight: 700; color: #22c55e; }
+        .avail-num.full { color: #ef4444; }
+        .occupancy-bar { background: #e5e7eb; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 15px; }
+        .occupancy-fill { height: 100%; background: #22c55e; transition: 0.5s; }
+        
+        /* AI/ML Badge */
+        .ml-badge { display: inline-block; padding: 6px 12px; background: #dbeafe; color: #1e40af; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; }
+        .parked-badge { display: block; padding: 8px; background: #dcfce7; color: #166534; border-radius: 6px; font-size: 0.85rem; font-weight: 600; margin-bottom: 15px; }
+
+        /* Buttons */
+        .btn-group { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-park { background: #003b71; color: white; }
+        .btn-leave { background: #f59e0b; color: white; }
+        .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 500px; }
+        .spots-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 20px 0; }
+        .spot { padding: 10px; border: 2px solid #ddd; text-align: center; cursor: pointer; border-radius: 4px; font-weight: 600; }
+        .spot.occupied { background: #fee2e2; color: #ef4444; cursor: not-allowed; border-color: #fecaca; }
+        .spot.selected { background: #003b71; color: white; border-color: #003b71; }
+        .spot.my-spot { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">🅿️ UNH Parking</div>
+            <div class="user-info">
+                <span id="userName"></span>
+                <a href="#" class="logout-link" onclick="logout(); return false;">Logout</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="hero">
+        <h1>Find Your Parking Spot</h1>
+        <p>Real-time AI availability predictions</p>
+    </div>
+
+    <div class="container">
+        <div class="quick-stats" id="stats"></div>
+        <h2 style="text-align:center; margin-bottom:30px; color:#003b71;">Available Parking Lots</h2>
+        <div class="lots-grid" id="lotsGrid"></div>
+    </div>
+
+    <div id="spotModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle"></h2>
+            <p id="modalSubtitle" style="color:#666; margin-top:10px;"></p>
+            <div class="spots-grid" id="spotsGrid"></div>
+            <div class="btn-group" id="modalActions"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        let currentLot = null;
+        let selectedSpot = null;
+        let modalMode = null;
+        let myParkedSpots = JSON.parse(localStorage.getItem('myParkedSpots') || '{}');
+
+        if (!token) window.location.href = 'login.html';
+        document.getElementById('userName').textContent = user.full_name || user.email;
+
+        async function loadData() {
+            try {
+                const [statsRes, lotsRes, predRes] = await Promise.all([
+                    fetch(`${API_URL}/stats`),
+                    fetch(`${API_URL}/lots`),
+                    fetch(`${API_URL}/predict/all`)
+                ]);
+                const stats = await statsRes.json();
+                const lots = await lotsRes.json();
+                const predictions = await predRes.json();
+
+                if (stats.success) renderStats(stats.stats);
+                if (lots.success && predictions.success) {
+                    const predMap = {};
+                    predictions.predictions.forEach(p => predMap[p.lot_id] = p);
+                    renderLots(lots.data, predMap);
+                }
+            } catch (err) { console.error("Update failed", err); }
+        }
+
+        function renderStats(s) {
+            const avail = s.total_spaces - s.occupied_spaces;
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-item"><h3>${avail}</h3><p>Spots Available</p></div>
+                <div class="stat-item"><h3>${s.overall_availability}%</h3><p>Availability</p></div>
+                <div class="stat-item"><h3>${s.average_search_time} min</h3><p>Avg Wait Time</p></div>`;
+        }
+
+        function renderLots(lots, predictions) {
+            document.getElementById('lotsGrid').innerHTML = lots.map(lot => {
+                const pred = predictions[lot.lot_id] || {};
+                const occPercent = Math.round((lot.current_count / lot.capacity) * 100);
+                const availCount = lot.capacity - lot.current_count;
+                const isParked = myParkedSpots[lot.lot_id] !== undefined;
+
+                return `
+                    <div class="lot-card">
+                        <div class="lot-name">${lot.name}</div>
+                        <div class="lot-location">${lot.building_proximity}</div>
+                        
+                        <div class="avail-box">
+                            <div><div style="font-size:0.8rem; color:#666;">AVAILABLE NOW</div><div class="avail-num ${availCount === 0 ? 'full' : ''}">${availCount} spots</div></div>
+                            <div style="text-align:right;"><div style="font-size:0.8rem; color:#666;">CAPACITY</div><div style="font-size:1.5rem; font-weight:600;">${lot.capacity}</div></div>
+                        </div>
+
+                        <div class="occupancy-bar"><div class="occupancy-fill" style="width:${occPercent}%"></div></div>
+                        <p style="font-size:0.85rem; color:#666; text-align:center; margin-bottom:15px;">${occPercent}% occupied</p>
+
+                        ${pred.search_time_minutes ? `<div class="ml-badge">⏱️ ~${pred.search_time_minutes} min to find a spot</div>` : ''}
+                        
+                        ${isParked ? `<div class="parked-badge">✅ You're parked in spot ${myParkedSpots[lot.lot_id]}</div>` : ''}
+
+                        <div class="btn-group">
+                            <button class="btn btn-park" onclick="openModal(${lot.lot_id}, '${lot.name.replace(/'/g, "\\'")}', 'park')" ${isParked || availCount === 0 ? 'disabled' : ''}>${isParked ? 'Already Parked' : 'Park Here'}</button>
+                            <button class="btn btn-leave" onclick="openModal(${lot.lot_id}, '${lot.name.replace(/'/g, "\\'")}', 'leave')" ${!isParked ? 'disabled' : ''}>I'm Leaving</button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function openModal(id, name, mode) {
+            currentLot = { id, name };
+            modalMode = mode;
+            selectedSpot = mode === 'leave' ? myParkedSpots[id] : null;
+            document.getElementById('modalTitle').textContent = name;
+            document.getElementById('modalSubtitle').textContent = mode === 'park' ? 'Select an available spot' : 'Confirm the spot you are vacating';
+            document.getElementById('modalActions').innerHTML = `
+                <button class="btn" style="background:#eee" onclick="closeModal()">Cancel</button>
+                <button class="btn ${mode === 'park' ? 'btn-park' : 'btn-leave'}" id="confirmBtn" onclick="confirmAction()" disabled>Confirm ${mode === 'park' ? 'Parking' : 'Exit'}</button>`;
+            loadOccupiedSpots(id);
+            document.getElementById('spotModal').classList.add('show');
+        }
+
+        async function loadOccupiedSpots(lotId) {
+            const res = await fetch(`${API_URL}/lots/${lotId}/occupied-spots`);
+            const data = await res.json();
+            const occupied = data.occupied_spots || [];
+            
+            // Assuming 20 spots per lot for visualization
+            const spots = Array.from({length: 20}, (_, i) => ({ number: `A${i+1}` }));
+            document.getElementById('spotsGrid').innerHTML = spots.map(s => {
+                const isMine = myParkedSpots[lotId] === s.number;
+                const isOcc = occupied.includes(s.number) && !isMine;
+                return `<div class="spot ${isOcc ? 'occupied' : ''} ${isMine ? 'my-spot' : ''}" id="spot-${s.number}" onclick="selectSpot('${s.number}', ${isOcc})">${s.number}</div>`;
+            }).join('');
+            if (modalMode === 'leave' && selectedSpot) selectSpot(selectedSpot, false);
+        }
+
+        function selectSpot(num, occ) {
+            if (occ && modalMode === 'park') return;
+            document.querySelectorAll('.spot').forEach(s => s.classList.remove('selected'));
+            document.getElementById(`spot-${num}`).classList.add('selected');
+            selectedSpot = num;
+            document.getElementById('confirmBtn').disabled = false;
+        }
+
+        async function confirmAction() {
+            if (!currentLot || !selectedSpot) return;
+            const btn = document.getElementById('confirmBtn');
+            const lotId = currentLot.id;
+            const spotNum = selectedSpot;
+            btn.disabled = true; btn.textContent = 'Processing...';
+
+            try {
+                const body = { lot_id: lotId, spot_number: spotNum };
+                if (modalMode === 'park') body.search_time_minutes = parseInt(prompt("Minutes to find spot?", "2")) || 2;
+
+                const res = await fetch(`${API_URL}/report/${modalMode === 'park' ? 'entry' : 'exit'}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    modalMode === 'park' ? myParkedSpots[lotId] = spotNum : delete myParkedSpots[lotId];
+                    localStorage.setItem('myParkedSpots', JSON.stringify(myParkedSpots));
+                    closeModal(); loadData();
+                    alert(`✅ Successful!`);
+                }
+            } catch (e) { alert("Error: " + e.message); btn.disabled = false; }
+        }
+
+        function closeModal() { document.getElementById('spotModal').classList.remove('show'); currentLot = null; }
+        function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+        
+        loadData();
+        setInterval(loadData, 30000); // Auto-refresh every 30s
+    </script>
+</body>
+</html>

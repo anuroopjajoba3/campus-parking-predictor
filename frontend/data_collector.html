@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNH Parking Data Collector</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .header p { font-size: 1.1rem; opacity: 0.9; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 { color: #667eea; font-size: 2rem; margin-bottom: 5px; }
+        .stat-card p { color: #666; font-size: 0.9rem; }
+        
+        .lots-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .lot-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .lot-header { border-bottom: 2px solid #f0f0f0; padding-bottom: 15px; margin-bottom: 15px; }
+        .lot-header h3 { color: #333; font-size: 1.3rem; margin-bottom: 5px; }
+        .lot-header p { color: #666; font-size: 0.9rem; }
+        
+        .occupancy-bar {
+            background: #e0e0e0;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        .occupancy-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .button-group { display: flex; gap: 10px; margin-top: 15px; }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-park { background: #667eea; color: white; }
+        .btn-leave { background: #f59e0b; color: white; }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .status.success { background: #22c55e; }
+        .status.error { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 UNH Campus Parking</h1>
+            <p>Help improve parking by reporting when you arrive and leave</p>
+        </div>
+        
+        <div id="stats" class="stats-grid"></div>
+        <div id="lots-container" class="lots-container">
+            <div style="color: white; text-align: center;">Loading parking lots...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5001/api';
+        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const stats = data.stats;
+                    document.getElementById('stats').innerHTML = `
+                        <div class="stat-card"><h3>${stats.total_events}</h3><p>Total Events</p></div>
+                        <div class="stat-card"><h3>${stats.average_search_time} min</h3><p>Avg Search Time</p></div>
+                        <div class="stat-card"><h3>${stats.occupied_spaces}/${stats.total_spaces}</h3><p>Occupied</p></div>
+                        <div class="stat-card"><h3>${stats.overall_availability}%</h3><p>Available</p></div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadLots() {
+            try {
+                const response = await fetch(`${API_URL}/lots`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('lots-container');
+                    container.innerHTML = data.data.map(lot => `
+                        <div class="lot-card">
+                            <div class="lot-header">
+                                <h3>${lot.name}</h3>
+                                <p>${lot.building_proximity}</p>
+                            </div>
+                            
+                            <div class="occupancy-bar">
+                                <div class="occupancy-fill" style="width: ${100-(lot.availability_percentage||100)}%">
+                                    ${lot.current_count||0}/${lot.capacity}
+                                </div>
+                            </div>
+                            
+                            <div class="button-group">
+                                <button class="btn-park" onclick="reportEntry(${lot.lot_id}, '${lot.name}')">
+                                    🅿️ I Parked Here
+                                </button>
+                                <button class="btn-leave" onclick="reportExit(${lot.lot_id}, '${lot.name}')">
+                                    🚗 I'm Leaving
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                showStatus('Error loading parking lots', 'error');
+            }
+        }
+
+        async function reportEntry(lotId, lotName) {
+            const searchTime = prompt(`How many minutes did it take to find parking at ${lotName}?`, '2');
+            if (!searchTime) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/report/entry`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        lot_id: lotId,
+                        search_time_minutes: parseInt(searchTime),
+                        weather: 'sunny',
+                        temperature: 70
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showStatus(`✅ Recorded parking at ${lotName}`, 'success');
+                    loadLots();
+                    loadStats();
+                }
+            } catch (error) {
+                showStatus('Error recording entry', 'error');
+            }
+        }
+
+        async function reportExit(lotId, lotName) {
+            try {
+                const response = await fetch(`${API_URL}/report/exit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, lot_id: lotId })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showStatus(`✅ Recorded exit from ${lotName}`, 'success');
+                    loadLots();
+                    loadStats();
+                }
+            } catch (error) {
+                showStatus('Error recording exit', 'error');
+            }
+        }
+
+        function showStatus(message, type) {
+            const existing = document.querySelector('.status');
+            if (existing) existing.remove();
+            
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            document.body.appendChild(status);
+            
+            setTimeout(() => status.remove(), 3000);
+        }
+
+        loadLots();
+        loadStats();
+        setInterval(() => { loadLots(); loadStats(); }, 10000);
+    </script>
+</body>
+</html>
