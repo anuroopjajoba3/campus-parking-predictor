@@ -8,17 +8,17 @@ import os
 import urllib.parse as up
 
 # --- DYNAMIC PATH HANDLING FOR NESTED STRUCTURE ---
-# Since app.py is in /backend/api, we need to add the /backend folder 
-# to sys.path so it can find 'auth.py' and the 'models' folder.
-current_dir = os.path.dirname(os.path.abspath(__file__)) # This is /backend/api
-parent_dir = os.path.dirname(current_dir)               # This is /backend
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
+# Since app.py is in /backend/api, we need to add the project root 
+# to sys.path so it can find 'backend.auth' and 'backend.models'.
+# This version is more robust for production environments like Render.
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
 
 # --- INTERNAL IMPORTS ---
 try:
-    # Now that 'parent_dir' is in path, we can import from the backend root
-    from models.predictor import ParkingPredictor
+    # Using explicit package naming to resolve ModuleNotFoundErrors in Gunicorn
+    from backend.models.predictor import ParkingPredictor
     predictor = ParkingPredictor()
     print("✅ ML Predictor loaded successfully")
 except Exception as e:
@@ -26,12 +26,12 @@ except Exception as e:
     predictor = None
 
 try:
-    # Import auth from the /backend directory level
-    from auth import auth_bp, token_required, admin_required
+    # Standardized import for production package structure
+    from backend.auth import auth_bp, token_required, admin_required
 except ImportError as e:
     print(f"❌ Critical Error: Could not load auth module: {e}")
-    # Fallback to prevent immediate crash if structure varies
-    from backend.auth import auth_bp, token_required, admin_required
+    # Fallback for local dev if necessary
+    from auth import auth_bp, token_required, admin_required
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
@@ -70,6 +70,15 @@ def get_db_connection():
     return mysql.connector.connect(**DB_CONFIG)
 
 # --- ROUTES ---
+
+@app.route('/')
+def index():
+    """Root endpoint to verify API is live."""
+    return jsonify({
+        "message": "UNH Parking API is Live",
+        "status": "healthy",
+        "environment": "production" if os.getenv('DATABASE_URL') else "development"
+    })
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

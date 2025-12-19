@@ -10,6 +10,7 @@ class ParkingPredictor:
         # current_dir is backend/models
         current_dir = os.path.dirname(os.path.abspath(__file__))
         # project_root is the main campus-parking-predictor folder
+        # We go up two levels from backend/models to reach the root
         project_root = os.path.dirname(os.path.dirname(current_dir))
         model_path = os.path.join(project_root, 'ml_models', 'saved_models')
         
@@ -20,6 +21,7 @@ class ParkingPredictor:
             return os.path.join(model_path, filename)
 
         try:
+            # Standard pickle loading preserved from original code
             with open(get_path('occupancy_model.pkl'), 'rb') as f:
                 self.occupancy_model = pickle.load(f)
             with open(get_path('search_time_model.pkl'), 'rb') as f:
@@ -30,11 +32,13 @@ class ParkingPredictor:
                 self.feature_columns = pickle.load(f)
             print("✅ Models loaded successfully")
         except FileNotFoundError as e:
+            # Matches the error seen in your Render logs
             print(f"⚠️ Warning: Model files not found at {model_path}: {e}")
             raise e
     
     def prepare_features(self, lot_id, timestamp, weather='sunny', temperature=70,
                         is_exam_week=False, capacity=150, prev_occupancy=0.5):
+        # All original feature engineering preserved
         hour = timestamp.hour
         day_of_week = timestamp.weekday()
         is_weekend = day_of_week >= 5
@@ -63,6 +67,7 @@ class ParkingPredictor:
         return df[self.feature_columns]
     
     def predict(self, lot_id, timestamp=None, **kwargs):
+        # All original prediction logic and rounding preserved
         if timestamp is None:
             timestamp = datetime.now()
         

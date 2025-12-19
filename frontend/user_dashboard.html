@@ -234,7 +234,8 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:5001/api';
+        // Updated to your live Render API URL
+        const API_URL = 'https://campus-parking-predictor-1.onrender.com/api';
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
@@ -249,6 +250,9 @@
 
         async function loadData() {
             try {
+                // Check server health first to ensure Render isn't asleep
+                const healthRes = await fetch(`${API_URL.replace('/api', '')}/`);
+                
                 const [statsRes, lotsRes, predRes] = await Promise.all([
                     fetch(`${API_URL}/stats`),
                     fetch(`${API_URL}/lots`),
@@ -260,12 +264,20 @@
                 const predData = await predRes.json();
 
                 if (statsData.success) renderStats(statsData.stats);
-                if (lotsData.success && predData.success) {
+                if (lotsData.success) {
                     const predMap = {};
-                    predData.predictions.forEach(p => predMap[p.lot_id] = p);
+                    if (predData.success) {
+                        predData.predictions.forEach(p => predMap[p.lot_id] = p);
+                    }
                     renderLots(lotsData.data, predMap);
                 }
-            } catch (err) { console.error("Update failed:", err); }
+            } catch (err) { 
+                console.error("Connectivity Issue:", err);
+                // Handle the case where the server might be waking up
+                if (err.message.includes('Failed to fetch')) {
+                    console.log("Server is waking up from inactivity...");
+                }
+            }
         }
 
         function renderStats(s) {
@@ -348,26 +360,31 @@
         }
 
         async function loadOccupiedSpots(lotId) {
-            const res = await fetch(`${API_URL}/lots/${lotId}/occupied-spots`);
-            const data = await res.json();
-            const occupied = data.occupied_spots || [];
-            
-            // Generate grid A1-B10
-            const spots = Array.from({length: 20}, (_, i) => ({ number: i < 10 ? `A${i+1}` : `B${i-9}` }));
-            
-            document.getElementById('spotsGrid').innerHTML = spots.map(s => {
-                const mine = myParkedSpots[lotId] === s.number;
-                const occ = occupied.includes(s.number) && !mine;
-                return `<div class="spot ${occ ? 'occupied' : ''} ${mine ? 'my-spot' : ''}" id="spot-${s.number}" onclick="selectSpot('${s.number}', ${occ})">${s.number}</div>`;
-            }).join('');
-            
-            if (modalMode === 'leave' && selectedSpot) selectSpot(selectedSpot, false);
+            try {
+                const res = await fetch(`${API_URL}/lots/${lotId}/occupied-spots`);
+                const data = await res.json();
+                const occupied = data.occupied_spots || [];
+                
+                // Generate grid A1-B10
+                const spots = Array.from({length: 20}, (_, i) => ({ number: i < 10 ? `A${i+1}` : `B${i-9}` }));
+                
+                document.getElementById('spotsGrid').innerHTML = spots.map(s => {
+                    const mine = myParkedSpots[lotId] === s.number;
+                    const occ = occupied.includes(s.number) && !mine;
+                    return `<div class="spot ${occ ? 'occupied' : ''} ${mine ? 'my-spot' : ''}" id="spot-${s.number}" onclick="selectSpot('${s.number}', ${occ})">${s.number}</div>`;
+                }).join('');
+                
+                if (modalMode === 'leave' && selectedSpot) selectSpot(selectedSpot, false);
+            } catch (err) {
+                console.error("Failed to load spots:", err);
+            }
         }
 
         function selectSpot(num, occ) {
             if (occ && modalMode === 'park') return;
             document.querySelectorAll('.spot').forEach(s => s.classList.remove('selected'));
-            document.getElementById(`spot-${num}`).classList.add('selected');
+            const spotEl = document.getElementById(`spot-${num}`);
+            if (spotEl) spotEl.classList.add('selected');
             selectedSpot = num;
             document.getElementById('confirmBtn').disabled = false;
         }
@@ -375,7 +392,9 @@
         async function confirmAction() {
             if (!currentLot || !selectedSpot) return;
             const btn = document.getElementById('confirmBtn');
-            btn.disabled = true; btn.textContent = 'Processing...';
+            const originalText = btn.textContent;
+            btn.disabled = true; 
+            btn.textContent = 'Processing...';
 
             try {
                 const body = { lot_id: currentLot.id, spot_number: selectedSpot };
@@ -385,7 +404,10 @@
 
                 const res = await fetch(`${API_URL}/report/${modalMode === 'park' ? 'entry' : 'exit'}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${token}` 
+                    },
                     body: JSON.stringify(body)
                 });
                 
@@ -396,16 +418,33 @@
                     
                     localStorage.setItem('myParkedSpots', JSON.stringify(myParkedSpots));
                     closeModal();
-                    loadData();
+                    await loadData(); // Reload to refresh availability
                     alert(`✅ ${modalMode === 'park' ? 'Parked' : 'Exited'} Successfully!`);
+                } else {
+                    alert(`❌ Failed: ${data.error || 'Unknown error'}`);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
                 }
-            } catch (e) { alert("Error: " + e.message); btn.disabled = false; }
+            } catch (e) { 
+                alert("Error: Connection failed. Please try again."); 
+                btn.disabled = false; 
+                btn.textContent = originalText;
+            }
         }
 
-        function closeModal() { document.getElementById('spotModal').classList.remove('show'); currentLot = null; }
-        function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+        function closeModal() { 
+            document.getElementById('spotModal').classList.remove('show'); 
+            currentLot = null; 
+        }
+
+        function logout() { 
+            localStorage.clear(); 
+            window.location.href = 'login.html'; 
+        }
         
+        // Initial data load
         loadData();
+        // Refresh every 30 seconds
         setInterval(loadData, 30000);
     </script>
 </body>

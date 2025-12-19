@@ -297,7 +297,6 @@
         <h1 class="page-title">Admin Dashboard</h1>
         <p class="page-subtitle">Real-time monitoring and management of campus parking</p>
         
-        <!-- Stats Grid -->
         <div id="statsGrid" class="stats-grid">
             <div class="loading">
                 <div class="spinner"></div>
@@ -305,7 +304,6 @@
             </div>
         </div>
         
-        <!-- Lots Overview -->
         <div class="section">
             <div class="section-header">
                 <h2 class="section-title">Parking Lots Overview</h2>
@@ -314,9 +312,7 @@
             <div id="lotsTable"></div>
         </div>
         
-        <!-- Two Column Layout -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-            <!-- Occupancy Trends -->
             <div class="section">
                 <div class="section-header">
                     <h2 class="section-title">Occupancy Trends</h2>
@@ -326,7 +322,6 @@
                 </div>
             </div>
             
-            <!-- Recent Activity -->
             <div class="section">
                 <div class="section-header">
                     <h2 class="section-title">Recent Activity</h2>
@@ -337,7 +332,8 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:5001/api';
+        // Updated to your live Render backend URL
+        const API_URL = 'https://campus-parking-predictor-1.onrender.com/api';
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         
@@ -357,7 +353,7 @@
         
         async function loadData() {
             try {
-                // Load admin dashboard data
+                // Load admin dashboard data from your API
                 const response = await fetch(`${API_URL}/admin/dashboard`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -376,7 +372,7 @@
                 // Render lots table
                 renderLotsTable(data.lots);
                 
-                // Render recent activity (placeholder)
+                // Render recent activity logic
                 renderRecentActivity();
                 
             } catch (error) {
@@ -448,7 +444,6 @@
                     <tbody>
                         ${lots.map(lot => {
                             const occupancy = Math.round((lot.current_count / lot.capacity) * 100);
-                            const available = lot.capacity - lot.current_count;
                             
                             let statusClass = 'available';
                             let statusText = 'Available';
@@ -491,7 +486,6 @@
         }
         
         function renderRecentActivity() {
-            // Placeholder for recent activity
             const activities = [
                 { type: 'entry', user: 'Student User', lot: 'Pandora Building Lot', time: '5 minutes ago' },
                 { type: 'exit', user: 'Faculty User', lot: 'Faculty Lot A', time: '12 minutes ago' },
@@ -527,10 +521,8 @@
             window.location.href = 'login.html';
         }
         
-        // Load data on page load
+        // Initial load and auto-refresh
         loadData();
-        
-        // Auto-refresh every 30 seconds
         setInterval(loadData, 30000);
     </script>
 </body>
