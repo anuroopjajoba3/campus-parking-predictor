@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
@@ -8,16 +8,15 @@ import os
 import urllib.parse as up
 
 # --- DYNAMIC PATH HANDLING FOR NESTED STRUCTURE ---
-# Since app.py is in /backend/api, we need to add the project root 
-# to sys.path so it can find 'backend.auth' and 'backend.models'.
-# This version is more robust for production environments like Render.
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
+# Define frontend directory path
+FRONTEND_DIR = os.path.join(root_dir, 'frontend')
+
 # --- INTERNAL IMPORTS ---
 try:
-    # Using explicit package naming to resolve ModuleNotFoundErrors in Gunicorn
     from backend.models.predictor import ParkingPredictor
     predictor = ParkingPredictor()
     print("✅ ML Predictor loaded successfully")
@@ -26,36 +25,32 @@ except Exception as e:
     predictor = None
 
 try:
-    # Standardized import for production package structure
     from backend.auth import auth_bp, token_required, admin_required
 except ImportError as e:
     print(f"❌ Critical Error: Could not load auth module: {e}")
-    # Fallback for local dev if necessary
     from auth import auth_bp, token_required, admin_required
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
+CORS(app)
 
 # Register authentication blueprint
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
-# --- DYNAMIC DATABASE CONFIGURATION ---
+# --- DATABASE CONFIGURATION ---
 db_url = os.getenv('DATABASE_URL')
 
 if db_url:
-    # Parsing Cloud connection string: mysql://user:pass@host:port/dbname
     up.uses_netloc.append("mysql")
     url = up.urlparse(db_url)
     DB_CONFIG = {
         'host': url.hostname,
         'user': url.username,
         'password': url.password,
-        'database': url.path[1:], # Removes the leading slash
+        'database': url.path[1:],
         'port': url.port or 3306
     }
     print(f"🌐 Cloud Mode: Connected to {url.hostname}")
 else:
-    # Local MacBook configuration
     DB_CONFIG = {
         'host': 'localhost',
         'user': 'root',
@@ -69,16 +64,47 @@ def get_db_connection():
     """Establishes a connection to the database using configured credentials."""
     return mysql.connector.connect(**DB_CONFIG)
 
-# --- ROUTES ---
+# --- FRONTEND ROUTES ---
 
 @app.route('/')
 def index():
-    """Root endpoint to verify API is live."""
-    return jsonify({
-        "message": "UNH Parking API is Live",
-        "status": "healthy",
-        "environment": "production" if os.getenv('DATABASE_URL') else "development"
-    })
+    """Serve the login page as the landing page."""
+    return send_from_directory(FRONTEND_DIR, 'login.html')
+
+@app.route('/login')
+def login_page():
+    """Serve login page."""
+    return send_from_directory(FRONTEND_DIR, 'login.html')
+
+@app.route('/user-dashboard')
+def user_dashboard():
+    """Serve user dashboard page."""
+    return send_from_directory(FRONTEND_DIR, 'user_dashboard.html')
+
+@app.route('/admin-dashboard')
+def admin_dashboard():
+    """Serve admin dashboard page."""
+    return send_from_directory(FRONTEND_DIR, 'admin_dashboard.html')
+
+@app.route('/parking-predictor')
+def parking_predictor_page():
+    """Serve parking predictor page."""
+    return send_from_directory(FRONTEND_DIR, 'parking_complete.html')
+
+@app.route('/data-collector')
+def data_collector():
+    """Serve data collector page."""
+    return send_from_directory(FRONTEND_DIR, 'data_collector.html')
+
+# Serve any other static files (CSS, JS, images)
+@app.route('/<path:path>')
+def serve_static(path):
+    """Serve static files from frontend directory."""
+    if path.startswith('api/'):
+        return jsonify({"error": "API endpoint not found"}), 404
+    return send_from_directory(FRONTEND_DIR, path)
+
+# --- API ROUTES ---
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -276,7 +302,7 @@ def get_occupied_spots(lot_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
-    # PORT is provided by Render, defaults to 5001 locally
     port = int(os.environ.get("PORT", 5001))
     print(f"🚀 Starting Flask API on port {port}")
+    print(f"📁 Serving frontend from: {FRONTEND_DIR}")
     app.run(host='0.0.0.0', port=port, debug=True)
