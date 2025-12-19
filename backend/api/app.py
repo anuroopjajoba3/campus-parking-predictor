@@ -300,7 +300,7 @@ def get_occupied_spots(lot_id):
         return jsonify({"success": True, "occupied_spots": [s['spot_number'] for s in occupied]})
     except Error as e:
         return jsonify({"success": False, "error": str(e)}), 500
-
+#
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     print(f"🚀 Starting Flask API on port {port}")
