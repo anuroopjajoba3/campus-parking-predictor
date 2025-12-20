@@ -49,9 +49,7 @@ if db_url:
         'password': url.password,
         'database': url.path[1:], # Removes the leading slash
         'port': url.port or 3306,
-        'ssl_disabled': False,  # Enable SSL for Aiven
-        'ssl_verify_cert': False,  # Disable strict cert verification
-        'ssl_verify_identity': False  # Disable identity verification
+        'ssl_disabled': False  # Enable SSL but don't verify certificate
     }
     print(f"🌐 Cloud Mode: Connected to {url.hostname} with SSL")
 else:
