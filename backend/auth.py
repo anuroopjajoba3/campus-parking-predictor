@@ -17,16 +17,18 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production'
 db_url = os.getenv('DATABASE_URL')
 
 if db_url:
-    # Parsing Cloud connection string: mysql://user:pass@host:port/dbname
+    # Parsing Cloud connection string: mysql://user:pass@host:port/dbname?ssl-mode=REQUIRED
     up.uses_netloc.append("mysql")
     url = up.urlparse(db_url)
+    
+    # For Aiven, we need to use 'ssl' parameter
     DB_CONFIG = {
         'host': url.hostname,
         'user': url.username,
         'password': url.password,
         'database': url.path[1:],
         'port': url.port or 3306,
-        'ssl_disabled': False  # Enable SSL but don't verify certificate
+        'ssl': {}  # Empty dict enables SSL without strict verification
     }
 else:
     # Local configuration

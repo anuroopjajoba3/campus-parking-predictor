@@ -40,18 +40,20 @@ app.register_blueprint(auth_bp, url_prefix='/api/auth')
 db_url = os.getenv('DATABASE_URL')
 
 if db_url:
-    # Parsing Cloud connection string: mysql://user:pass@host:port/dbname
+    # Parsing Cloud connection string: mysql://user:pass@host:port/dbname?ssl-mode=REQUIRED
     up.uses_netloc.append("mysql")
     url = up.urlparse(db_url)
+    
+    # For Aiven, we need to use 'ssl' parameter instead of 'ssl_disabled'
     DB_CONFIG = {
         'host': url.hostname,
         'user': url.username,
         'password': url.password,
         'database': url.path[1:], # Removes the leading slash
         'port': url.port or 3306,
-        'ssl_disabled': False  # Enable SSL but don't verify certificate
+        'ssl': {}  # Empty dict enables SSL without strict verification
     }
-    print(f"🌐 Cloud Mode: Connected to {url.hostname} with SSL")
+    print(f"🌐 Cloud Mode: Connected to {url.hostname}:{url.port} with SSL")
 else:
     # Local MacBook configuration
     DB_CONFIG = {
